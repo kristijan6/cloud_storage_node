@@ -8,6 +8,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,9 +19,9 @@ import java.util.StringJoiner;
 @Service
 public class StorageService {
 
-    private final String path = "./src/main/resources/storage/";
+    private final String path = "./storage/";
 
-    public void save(KeyValueDTO keyValueDTO) {
+    public String put(KeyValueDTO keyValueDTO) {
         try {
             String fileName = keyValueDTO.getHash(HashHolder.getHashingAlgorithm());
             Path filePath = Paths.get(path + fileName);
@@ -33,8 +34,10 @@ public class StorageService {
             writer.write(keyValueDTO.getValue());
 
             writer.close();
+
+            return filePath.toString();
         } catch (IOException ex) {
-            throw new StorageException(ex.getMessage());
+            throw new StorageException(ex.getMessage(), ex.getCause());
         }
     }
 
@@ -43,16 +46,45 @@ public class StorageService {
             String fileName = HashHolder.getHashingAlgorithm().hash(key);
             Path filePath = Paths.get(path + fileName);
 
-            if (!Files.exists(filePath)) throw new StorageException("Given key does not exists in storage.");
-
-            StringJoiner result = new StringJoiner(System.lineSeparator());
-            for (String s : Files.readAllLines(filePath)) {
-                result.add(s);
-            }
-
-            return result.toString();
+            return readValue(filePath, "Given key does not exists in storage.");
         } catch (IOException ex) {
-            throw new StorageException(ex.getMessage());
+            throw new StorageException(ex.getMessage(), ex.getCause());
+        }
+    }
+
+    public KeyValueDTO getWithPath(String path) {
+        try {
+            Path filePath = Paths.get(path);
+            String value = readValue(filePath, "Given path does not exists in storage.");
+
+            String[] pathSplitted = path.split("[/]");
+            String key = pathSplitted[pathSplitted.length-1];
+
+            return new KeyValueDTO(key, value);
+        } catch (IOException ex) {
+            throw new StorageException(ex.getMessage(), ex.getCause());
+        }
+    }
+
+    public boolean delete(String key) {
+        String fileName = HashHolder.getHashingAlgorithm().hash(key);
+        Path filePath = Paths.get(path + fileName);
+
+        try {
+            return Files.deleteIfExists(filePath);
+        } catch (IOException ex) {
+            throw new StorageException(ex.getMessage(), ex.getCause());
+        }
+    }
+
+    public boolean recreateStorage() {
+        try {
+            deleteDirRecursively(Paths.get(path).toFile());
+            Files.createDirectory(Paths.get(path));
+
+            return true;
+        } catch (IOException ex) {
+            throw new StorageException(ex.getMessage(), ex.getCause());
         }
     }
 
@@ -66,5 +98,27 @@ public class StorageService {
                 e.printStackTrace();
             }
         }
+    }
+
+    private String readValue(Path filePath, String errorMsg) throws IOException {
+        if (!Files.exists(filePath)) throw new StorageException("Given key does not exists in storage.");
+
+        StringJoiner result = new StringJoiner(System.lineSeparator());
+        for (String s : Files.readAllLines(filePath)) {
+            result.add(s);
+        }
+
+        return result.toString();
+    }
+
+    private void deleteDirRecursively(File dir) throws IOException {
+        File[] allContents = dir.listFiles();
+        if (allContents != null) {
+            for (File file : allContents) {
+                Files.deleteIfExists(file.toPath());
+            }
+        }
+
+        Files.deleteIfExists(dir.toPath());
     }
 }
