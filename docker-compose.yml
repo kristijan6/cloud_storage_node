@@ -1,0 +1,15 @@
+version: '3'
+services:
+  node-1:
+    image: kristijan6/cloud-storage-node
+    ports: 
+      - "8080:12345"
+  node-2:
+    image: kristijan6/cloud-storage-node
+    ports:
+      - "8081:12345"
+  node-3:
+    image: kristijan6/cloud-storage-node
+    ports:
+      - "8082:12345"
+  
